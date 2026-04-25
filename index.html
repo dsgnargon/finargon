@@ -278,6 +278,7 @@ body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--text);min-
       </div>
       <button class="btn-sm btn-p" id="btnAC" onclick="openAddClient()">+ Cliente</button>
       <button class="btn-sm btn-p" id="btnAE" onclick="openAddExpense()">+ Gasto</button>
+      <button class="btn-sm" onclick="forcSync()" title="Enviar todos os dados para a nuvem">☁️ Sincronizar</button>
       <button class="btn-sm" onclick="addMonth()">+ Mês</button>
       <button class="btn-sm" onclick="doLogout()">Sair</button>
     </div>
@@ -552,31 +553,31 @@ let DB={},CUR='2025-Março',EF='all',editC=null,editE=null,cTipo='fixo',eTipo='f
 const SB_URL='https://beitzscezxfufagnylw.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJlaXR6c2Nlem54ZnVmYWdueWx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMzk2OTAsImV4cCI6MjA5MjcxNTY5MH0.iJRFTn2_lsDTayQgZfpviO961ZFaMMPAFhl0yuH3TOI';
 const SB_HDR={'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
+const IS_ONLINE=location.protocol==='https:'||location.hostname==='localhost';
 
 let _saveTimer=null;
 function save(){
-  // 1. localStorage imediato (fallback offline)
   try{localStorage.setItem('finArgon_db',JSON.stringify(DB));}catch(e){}
-  // 2. histórico undo/redo
   const snap=JSON.stringify(DB);
   HIST.splice(HIST_IDX+1);
   HIST.push(snap);
   if(HIST.length>MAX_HIST)HIST.shift();
   HIST_IDX=HIST.length-1;
   updUndoBtns();
-  // 3. Supabase com debounce 800ms para não sobrecarregar
-  clearTimeout(_saveTimer);
-  _saveTimer=setTimeout(()=>pushToSupabase(),800);
+  if(IS_ONLINE){
+    clearTimeout(_saveTimer);
+    _saveTimer=setTimeout(()=>pushToSupabase(),800);
+  }
 }
 
 async function pushToSupabase(){
   try{
-    await fetch(`${SB_URL}/rest/v1/dados?id=eq.main`,{
+    const r=await fetch(`${SB_URL}/rest/v1/dados?id=eq.main`,{
       method:'PATCH',
       headers:{...SB_HDR,'Prefer':'return=minimal'},
       body:JSON.stringify({db:DB,updated_at:new Date().toISOString()})
     });
-    showSyncDot('ok');
+    showSyncDot(r.ok?'ok':'err');
   }catch(e){showSyncDot('err');}
 }
 
@@ -584,9 +585,7 @@ async function loadFromSupabase(){
   try{
     const r=await fetch(`${SB_URL}/rest/v1/dados?id=eq.main&select=db`,{headers:SB_HDR});
     const d=await r.json();
-    if(d&&d[0]&&d[0].db&&Object.keys(d[0].db).length>0){
-      return d[0].db;
-    }
+    if(d&&d[0]&&d[0].db&&Object.keys(d[0].db).length>0) return d[0].db;
   }catch(e){}
   return null;
 }
@@ -603,7 +602,7 @@ function undo(){
   HIST_IDX--;
   DB=JSON.parse(HIST[HIST_IDX]);
   try{localStorage.setItem('finArgon_db',JSON.stringify(DB));}catch(e){}
-  clearTimeout(_saveTimer);_saveTimer=setTimeout(()=>pushToSupabase(),800);
+  if(IS_ONLINE){clearTimeout(_saveTimer);_saveTimer=setTimeout(()=>pushToSupabase(),800);}
   updUndoBtns();ra();
 }
 function redo(){
@@ -611,7 +610,7 @@ function redo(){
   HIST_IDX++;
   DB=JSON.parse(HIST[HIST_IDX]);
   try{localStorage.setItem('finArgon_db',JSON.stringify(DB));}catch(e){}
-  clearTimeout(_saveTimer);_saveTimer=setTimeout(()=>pushToSupabase(),800);
+  if(IS_ONLINE){clearTimeout(_saveTimer);_saveTimer=setTimeout(()=>pushToSupabase(),800);}
   updUndoBtns();ra();
 }
 document.addEventListener('keydown',e=>{
@@ -625,9 +624,8 @@ function migrateAndClean(data){
   if(oldKeys.length>0) oldKeys.forEach(k=>{data['2025-'+k]=data[k];delete data[k];});
   Object.keys(data).forEach(mk=>{
     if(data[mk]){
-      data[mk].clients=data[mk].clients.filter(c=>c.n&&c.n.trim()!==''&&c.n.toLowerCase()!=='social media');
+      data[mk].clients=(data[mk].clients||[]).filter(c=>c.n&&c.n.trim()!==''&&c.n.toLowerCase()!=='social media');
       data[mk].clients.forEach(c=>{if(!c.servicos)c.servicos=c.tipo==='fixo'?['sm']:[];});
-      // restore missing avulsos from seed
       if(SEED[mk]){
         const existing=new Set(data[mk].clients.map(c=>c.n));
         SEED[mk].clients.filter(c=>c.tipo==='avulso').forEach(sc=>{if(!existing.has(sc.n))data[mk].clients.push({...sc});});
@@ -644,29 +642,26 @@ function seedFresh(){
 
 async function load(){
   showSyncDot('loading');
-  // try Supabase first
-  const remote=await loadFromSupabase();
-  if(remote&&Object.keys(remote).length>0){
-    DB=migrateAndClean(remote);
-    // also cache locally
-    try{localStorage.setItem('finArgon_db',JSON.stringify(DB));}catch(e){}
-    showSyncDot('ok');
-    return;
+  if(IS_ONLINE){
+    const remote=await loadFromSupabase();
+    if(remote&&Object.keys(remote).length>0){
+      DB=migrateAndClean(remote);
+      try{localStorage.setItem('finArgon_db',JSON.stringify(DB));}catch(e){}
+      showSyncDot('ok');return;
+    }
   }
-  // fallback: localStorage
+  // localStorage fallback
   try{
     const r=localStorage.getItem('finArgon_db');
     if(r){
       DB=migrateAndClean(JSON.parse(r));
-      // push to Supabase since it was empty
-      pushToSupabase();
-      showSyncDot('ok');
-      return;
+      if(IS_ONLINE) pushToSupabase();
+      showSyncDot('ok');return;
     }
   }catch(e){}
-  // fresh seed
+  // seed
   seedFresh();
-  pushToSupabase();
+  if(IS_ONLINE) pushToSupabase();
   showSyncDot('ok');
 }
 
@@ -674,26 +669,38 @@ async function load(){
 function showSyncDot(state){
   let dot=document.getElementById('syncDot');
   if(!dot){
-    dot=document.createElement('div');
-    dot.id='syncDot';
-    dot.style.cssText='width:8px;height:8px;border-radius:50%;flex-shrink:0;transition:background .3s;margin-right:2px';
+    dot=document.createElement('div');dot.id='syncDot';
+    dot.style.cssText='width:8px;height:8px;border-radius:50%;flex-shrink:0;transition:background .3s';
     const hbtns=document.querySelector('.undo-btns');
     if(hbtns)hbtns.appendChild(dot);
   }
-  if(state==='ok')dot.style.background='var(--ok)';
-  else if(state==='err')dot.style.background='var(--danger)';
-  else dot.style.background='var(--warn)';
-  dot.title=state==='ok'?'Sincronizado':state==='err'?'Erro ao sincronizar':'Sincronizando...';
+  dot.style.background=state==='ok'?'var(--ok)':state==='err'?'var(--danger)':'var(--warn)';
+  dot.title=state==='ok'?'Sincronizado com a nuvem':state==='err'?'Erro de sincronização':'Sincronizando...';
+}
+
+async function forcSync(){
+  if(!IS_ONLINE){showToast('⚠️ Abra pelo link do Vercel para sincronizar com a nuvem');return;}
+  showSyncDot('loading');showToast('☁️ Sincronizando...');
+  try{
+    const test=await fetch(`${SB_URL}/rest/v1/dados?id=eq.main&select=id`,{headers:SB_HDR});
+    if(!test.ok){showSyncDot('err');showToast('❌ Erro '+test.status+' — verifique o Supabase');return;}
+    const rows=await test.json();
+    const r=rows&&rows.length>0
+      ? await fetch(`${SB_URL}/rest/v1/dados?id=eq.main`,{method:'PATCH',headers:{...SB_HDR,'Prefer':'return=minimal'},body:JSON.stringify({db:DB,updated_at:new Date().toISOString()})})
+      : await fetch(`${SB_URL}/rest/v1/dados`,{method:'POST',headers:{...SB_HDR,'Prefer':'return=minimal'},body:JSON.stringify({id:'main',db:DB,updated_at:new Date().toISOString()})});
+    if(r.ok){showSyncDot('ok');showToast('✅ Sincronizado com sucesso!');}
+    else{showSyncDot('err');showToast('❌ Erro ao salvar: '+r.status);}
+  }catch(e){showSyncDot('err');showToast('❌ '+e.message);}
 }
 
 function init(){
   load().then(()=>{
     const snap=JSON.stringify(DB);
     HIST.push(snap);HIST_IDX=0;
-    updUndoBtns();
-    ra();
+    updUndoBtns();ra();
   });
 }
+
 const ms=()=>Object.keys(DB);
 const gc=m=>DB[m]?.clients||[];
 const ge=m=>DB[m]?.expenses||[];
@@ -894,7 +901,46 @@ Chart.defaults.font.family="'DM Mono',monospace";Chart.defaults.font.size=11;
 const PAL=['#ba84e4','#3dd68c','#5b7fff','#ffb347','#fb7185','#a78bfa','#34d399','#fbbf24'];
 function dChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
 
-// ── CLIENTES PAGE ──
+async function forcSync(){
+  showSyncDot('loading');
+  showToast('☁️ Conectando ao Supabase...');
+  try{
+    // primeiro testa a conexão com um GET
+    const test=await fetch(`${SB_URL}/rest/v1/dados?id=eq.main&select=id`,{headers:SB_HDR});
+    if(!test.ok){
+      const txt=await test.text();
+      showSyncDot('err');
+      showToast('❌ Erro '+test.status+': '+txt.slice(0,80));
+      return;
+    }
+    const rows=await test.json();
+    let r;
+    if(rows&&rows.length>0){
+      // row existe — faz PATCH
+      r=await fetch(`${SB_URL}/rest/v1/dados?id=eq.main`,{
+        method:'PATCH',
+        headers:{...SB_HDR,'Prefer':'return=minimal'},
+        body:JSON.stringify({db:DB,updated_at:new Date().toISOString()})
+      });
+    } else {
+      // row não existe — faz INSERT
+      r=await fetch(`${SB_URL}/rest/v1/dados`,{
+        method:'POST',
+        headers:{...SB_HDR,'Prefer':'return=minimal'},
+        body:JSON.stringify({id:'main',db:DB,updated_at:new Date().toISOString()})
+      });
+    }
+    if(r&&r.ok){showSyncDot('ok');showToast('✅ Dados sincronizados com sucesso!');}
+    else{
+      const txt=r?await r.text():'sem resposta';
+      showSyncDot('err');showToast('❌ Erro ao salvar: '+txt.slice(0,80));
+    }
+  }catch(e){
+    showSyncDot('err');
+    showToast('❌ '+e.message);
+    console.error('Supabase error:',e);
+  }
+}
 let selClientIdx=null;
 
 // Get unique clients across all months (by name)
