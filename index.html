@@ -300,6 +300,7 @@ body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--text);min-
               <th>Cliente</th><th>Fixo</th><th>Avulso</th><th>Desc.</th><th>Total</th>
               <th class="tc" title="Cobrança enviada">📨</th>
               <th class="tc" title="Pago">✅</th>
+              <th class="tc" title="Nota Fiscal">NF</th>
               <th class="tc" title="Conta">Conta</th>
               <th class="tc" title="Enviar cobrança">📤</th>
               <th class="tc" title="Editar / Remover">⚙️</th>
@@ -899,6 +900,11 @@ function rClients(){
         <div class="sdot${c.pago?' pago':isParcial?' parcial':''}" onclick="tgPago(${i})">${c.pago?'✅':isParcial?'⏳':'✅'}</div>
         ${isParcial?`<div class="parcial-info">✔ R$ ${fn(c.pagoParcial,0)}<br><span class="parcial-neg">✗ R$ ${fn(falta,0)}</span></div>`:''}
       </div></td>
+      <td style="text-align:center;width:48px">
+        <div onclick="tgNF(${i})" style="cursor:pointer;font-size:.62rem;font-family:'Syne',sans-serif;font-weight:700;padding:3px 6px;border-radius:5px;border:1px solid;transition:all .15s;display:inline-block;${c.nf===true?'background:rgba(251,191,36,.15);border-color:#fbbf24;color:#fbbf24':c.nf===false?'background:rgba(61,214,140,.12);border-color:var(--ok);color:var(--ok)':'background:transparent;border-color:var(--border);color:var(--muted2)'}" title="Clique para alternar: Precisa NF / Não precisa / Não definido">
+          ${c.nf===true?'NF':c.nf===false?'OK':'—'}
+        </div>
+      </td>
       <td style="text-align:center;width:80px"><div class="conta-wrap">
         <button class="cbtn${conta==='CC'?' cc-on':''}" onclick="setConta(${i},'CC')">CC</button>
         <button class="cbtn${conta==='AR'?' ar-on':''}" onclick="setConta(${i},'AR')">AR</button>
@@ -915,9 +921,9 @@ function rClients(){
       </td>
     </tr>`;
   });
-  if(!html)html='<tr><td colspan="10" style="padding:26px;text-align:center;color:var(--muted);font-size:.74rem">Nenhum cliente — clique em + Cliente</td></tr>';
+  if(!html)html='<tr><td colspan="11" style="padding:26px;text-align:center;color:var(--muted);font-size:.74rem">Nenhum cliente — clique em + Cliente</td></tr>';
   document.getElementById('cBody').innerHTML=html;
-  document.getElementById('cFoot').innerHTML=`<tr><td>TOTAL</td><td>R$ ${fn(sf)}</td><td>R$ ${fn(sa)}</td><td style="color:var(--danger)">R$ ${fn(sd)}</td><td style="color:var(--ok)">R$ ${fn(st)}</td><td></td><td></td><td></td><td></td><td></td></tr>`;
+  document.getElementById('cFoot').innerHTML=`<tr><td>TOTAL</td><td>R$ ${fn(sf)}</td><td>R$ ${fn(sa)}</td><td style="color:var(--danger)">R$ ${fn(sd)}</td><td style="color:var(--ok)">R$ ${fn(st)}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
 }
 
 function rExp(){
@@ -973,6 +979,13 @@ function tgPago(i){
 }
 function tgEP(i){const e=ge(CUR)[i];if(e){e.pago=!e.pago;save();ra();}}
 function setConta(i,v){const c=gc(CUR)[i];if(c){c.conta=c.conta===v?'':v;save();ra();}}
+function tgNF(i){
+  const c=gc(CUR)[i];if(!c)return;
+  if(c.nf===undefined||c.nf===null)c.nf=true;
+  else if(c.nf===true)c.nf=false;
+  else c.nf=undefined;
+  save();ra();
+}
 
 function setEF(f,el){EF=f;document.querySelectorAll('.ft').forEach(t=>t.className='ft');el.classList.add(f==='all'?'fa':f==='fixo'?'ff':'fv');rExp();}
 
