@@ -308,24 +308,41 @@ body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--text);min-
             <tfoot id="cFoot"></tfoot>
           </table>
         </div>
-        <div class="sec">
-          <div class="sec-hd">
-            <span class="sec-ttl">Gastos</span>
-            <span class="bdg bdg-d" id="bExp">R$ 0</span>
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="sec">
+            <div class="sec-hd">
+              <span class="sec-ttl">Gastos</span>
+              <span class="bdg bdg-d" id="bExp">R$ 0</span>
+            </div>
+            <div class="ftabs">
+              <button class="ft fa" onclick="setEF('all',this)">Todos</button>
+              <button class="ft" onclick="setEF('fixo',this)">Fixo</button>
+              <button class="ft" onclick="setEF('variavel',this)">Variável</button>
+            </div>
+            <table class="tbl">
+              <thead><tr>
+                <th>Gasto</th><th>Fixo</th><th>Variável</th><th>Total</th>
+                <th class="tc" title="Pago">✅</th>
+              </tr></thead>
+              <tbody id="eBody"></tbody>
+              <tfoot id="eFoot"></tfoot>
+            </table>
           </div>
-          <div class="ftabs">
-            <button class="ft fa" onclick="setEF('all',this)">Todos</button>
-            <button class="ft" onclick="setEF('fixo',this)">Fixo</button>
-            <button class="ft" onclick="setEF('variavel',this)">Variável</button>
+          <div class="sec">
+            <div class="sec-hd">
+              <span class="sec-ttl">📝 Observações do Mês</span>
+              <span id="obsStatus" style="font-size:.6rem;color:var(--muted2);font-family:'DM Mono',monospace"></span>
+            </div>
+            <div style="padding:12px">
+              <textarea id="obsArea"
+                placeholder="Anotações, avisos, rascunhos, pendências do mês..."
+                oninput="onObsInput()"
+                style="width:100%;min-height:160px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-family:'DM Mono',monospace;font-size:.78rem;line-height:1.6;outline:none;resize:vertical;transition:border-color .15s"
+                onfocus="this.style.borderColor='var(--accent)'"
+                onblur="this.style.borderColor='var(--border)'"
+              ></textarea>
+            </div>
           </div>
-          <table class="tbl">
-            <thead><tr>
-              <th>Gasto</th><th>Fixo</th><th>Variável</th><th>Total</th>
-              <th class="tc" title="Pago">✅</th>
-            </tr></thead>
-            <tbody id="eBody"></tbody>
-            <tfoot id="eFoot"></tfoot>
-          </table>
         </div>
       </div>
       <div class="lb" id="lbanner"></div>
@@ -698,7 +715,37 @@ function showSyncDot(state){
   dot.title=state==='ok'?'Sincronizado com a nuvem':state==='err'?'Erro de sincronização':'Sincronizando...';
 }
 
-// ── LANÇAMENTO RÁPIDO ──
+// ── OBSERVATIONS ──
+let _obsTimer=null;
+function rObs(){
+  const el=document.getElementById('obsArea');
+  const st=document.getElementById('obsStatus');
+  if(!el)return;
+  el.value=DB[CUR]?.obs||'';
+  if(st)st.textContent='';
+}
+function onObsInput(){
+  const el=document.getElementById('obsArea');
+  const st=document.getElementById('obsStatus');
+  if(!el)return;
+  if(!DB[CUR])return;
+  DB[CUR].obs=el.value;
+  if(st)st.textContent='editando...';
+  // debounce save
+  clearTimeout(_obsTimer);
+  _obsTimer=setTimeout(()=>{
+    try{localStorage.setItem('finArgon_db',JSON.stringify(DB));}catch(e){}
+    if(IS_ONLINE){clearTimeout(_saveTimer);_saveTimer=setTimeout(()=>pushToSupabase(),800);}
+    // push undo history
+    const snap=JSON.stringify(DB);
+    HIST.splice(HIST_IDX+1);HIST.push(snap);
+    if(HIST.length>MAX_HIST)HIST.shift();
+    HIST_IDX=HIST.length-1;
+    updUndoBtns();
+    if(st)st.textContent='salvo ✓';
+    setTimeout(()=>{if(st)st.textContent='';},2000);
+  },1000);
+}
 function openLancar(){
   ['lqNome','lqValor','lqDesc','lqDesc2'].forEach(id=>document.getElementById(id).value='');
   openM('mLancar');
@@ -794,7 +841,7 @@ function swYear(y){
   ra();
 }
 function sw(k){CUR=k;ra();}
-function ra(){rTabs();rSummary();rClients();rExp();rLucro();if(curPage==='charts'){rCmpChecks();rCharts();}}
+function ra(){rTabs();rSummary();rClients();rExp();rLucro();rObs();if(curPage==='charts'){rCmpChecks();rCharts();}}
 
 function rSummary(){
   const tr=tRec(CUR),tp=tPago(CUR),te=tExp(CUR),lc=lucro(CUR);
