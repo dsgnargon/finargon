@@ -293,6 +293,7 @@ body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--text);min-
             <span class="sec-ttl">Receitas</span>
             <span class="bdg bdg-w" id="bCob">0 cobrado</span>
             <span class="bdg bdg-ok" id="bPago">0 pago</span>
+            <button class="btn-sm btn-p" style="font-size:.58rem;padding:3px 8px;margin-left:4px" onclick="openLancar()">+ Lançar</button>
           </div>
           <table class="tbl">
             <thead><tr>
@@ -300,7 +301,8 @@ body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--text);min-
               <th class="tc" title="Cobrança enviada">📨</th>
               <th class="tc" title="Pago">✅</th>
               <th class="tc" title="Conta">Conta</th>
-              <th class="tc" title="Enviar cobrança">Enviar</th>
+              <th class="tc" title="Enviar cobrança">📤</th>
+              <th class="tc" title="Editar / Remover">⚙️</th>
             </tr></thead>
             <tbody id="cBody"></tbody>
             <tfoot id="cFoot"></tfoot>
@@ -368,6 +370,24 @@ body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--text);min-
           </div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL LANÇAR RÁPIDO -->
+<div class="overlay" id="mLancar">
+  <div class="modal" style="max-width:400px">
+    <h2>⚡ Lançamento Rápido</h2>
+    <p style="font-size:.72rem;color:var(--muted);margin-bottom:16px">Adiciona um cliente direto no mês atual sem precisar cadastrar no sistema.</p>
+    <div class="mg">
+      <div class="fld mg full"><label>Nome</label><input id="lqNome" type="text" placeholder="Nome do cliente"></div>
+      <div class="fld"><label>Valor (R$)</label><input id="lqValor" type="number" placeholder="0" min="0" step="0.01"></div>
+      <div class="fld"><label>Desconto (R$)</label><input id="lqDesc" type="number" placeholder="0" min="0" step="0.01"></div>
+      <div class="fld mg full"><label>Descrição / Serviço</label><input id="lqDesc2" type="text" placeholder="Ex: Site, Identidade Visual..."></div>
+    </div>
+    <div class="mact">
+      <button class="bc" onclick="closeM('mLancar')">Cancelar</button>
+      <button class="bconf" onclick="saveLancar()">Lançar no mês</button>
     </div>
   </div>
 </div>
@@ -678,6 +698,26 @@ function showSyncDot(state){
   dot.title=state==='ok'?'Sincronizado com a nuvem':state==='err'?'Erro de sincronização':'Sincronizando...';
 }
 
+// ── LANÇAMENTO RÁPIDO ──
+function openLancar(){
+  ['lqNome','lqValor','lqDesc','lqDesc2'].forEach(id=>document.getElementById(id).value='');
+  openM('mLancar');
+}
+function saveLancar(){
+  const n=document.getElementById('lqNome').value.trim();
+  if(!n)return;
+  const valor=parseFloat(document.getElementById('lqValor').value)||0;
+  const desc=parseFloat(document.getElementById('lqDesc').value)||0;
+  const descricao=document.getElementById('lqDesc2').value.trim();
+  gc(CUR).push({n,tipo:'avulso',fixo:0,avulso:valor,desc,servicos:[],_descricao:descricao,cob:false,pago:false,conta:'',pagoParcial:0});
+  save();closeM('mLancar');ra();
+}
+function delClientInMonth(i){
+  const c=gc(CUR)[i];if(!c)return;
+  const [y,m]=CUR.split('-');
+  openConfirm(`Remover ${c.n}?`,`Remove <b>${c.n}</b> apenas de <b>${m}/${y}</b>. Os outros meses não são afetados.`,()=>{gc(CUR).splice(i,1);save();ra();});
+}
+
 async function forcSync(){
   if(!IS_ONLINE){showToast('⚠️ Abra pelo link do Vercel para sincronizar com a nuvem');return;}
   showSyncDot('loading');showToast('☁️ Sincronizando...');
@@ -794,37 +834,43 @@ function rClients(){
     const svcTagsHtml=svcs.length>0
       ? svcs.map(s=>`<span class="svc-tag svc-${s}">${SVC_LABELS[s]||s}</span>`).join('')
       : `<span class="svc-tag" style="background:rgba(107,115,148,.15);color:var(--muted2)">não definido</span>`;
-    html+=`<tr ondblclick="openEditClient(${i})" style="cursor:pointer" title="Duplo clique para editar">
+    html+=`<tr style="cursor:default">
       <td>
-        <div class="ec nm pw${pl&&c.tipo==='fixo'?' has-pp':''}" style="cursor:pointer;flex-wrap:wrap;gap:4px">
+        <div class="ec nm pw${pl&&c.tipo==='fixo'?' has-pp':''}" style="flex-wrap:wrap;gap:4px">
           ${popup}
           <span style="flex:1;min-width:80px">${c.n}</span>
           <span class="tag t${c.tipo[0]}">${c.tipo.toUpperCase()}</span>
           ${svcTagsHtml}
         </div>
       </td>
-      <td><div class="ec vl" contenteditable="true" data-i="${i}" data-f="fixo" onblur="ceC(this)" data-ph="0" ondblclick="event.stopPropagation()">${c.fixo||''}</div></td>
-      <td><div class="ec vl" contenteditable="true" data-i="${i}" data-f="avulso" onblur="ceC(this)" data-ph="0" ondblclick="event.stopPropagation()">${c.avulso||''}</div></td>
-      <td><div class="ec dc" contenteditable="true" data-i="${i}" data-f="desc" onblur="ceC(this)" data-ph="0" ondblclick="event.stopPropagation()">${c.desc||''}</div></td>
+      <td><div class="ec vl" contenteditable="true" data-i="${i}" data-f="fixo" onblur="ceC(this)" data-ph="0">${c.fixo||''}</div></td>
+      <td><div class="ec vl" contenteditable="true" data-i="${i}" data-f="avulso" onblur="ceC(this)" data-ph="0">${c.avulso||''}</div></td>
+      <td><div class="ec dc" contenteditable="true" data-i="${i}" data-f="desc" onblur="ceC(this)" data-ph="0">${c.desc||''}</div></td>
       <td><div class="ec tt">${fmt(tot)}</div></td>
-      <td style="text-align:center;width:38px"><div class="sdot${c.cob?' cob':''}" onclick="tgCob(${i});event.stopPropagation()">📨</div></td>
+      <td style="text-align:center;width:38px"><div class="sdot${c.cob?' cob':''}" onclick="tgCob(${i})">📨</div></td>
       <td style="width:70px"><div class="pg-cell">
-        <div class="sdot${c.pago?' pago':isParcial?' parcial':''}" onclick="tgPago(${i});event.stopPropagation()">${c.pago?'✅':isParcial?'⏳':'✅'}</div>
+        <div class="sdot${c.pago?' pago':isParcial?' parcial':''}" onclick="tgPago(${i})">${c.pago?'✅':isParcial?'⏳':'✅'}</div>
         ${isParcial?`<div class="parcial-info">✔ R$ ${fn(c.pagoParcial,0)}<br><span class="parcial-neg">✗ R$ ${fn(falta,0)}</span></div>`:''}
       </div></td>
-      <td style="text-align:center;width:80px"><div class="conta-wrap" ondblclick="event.stopPropagation()">
-        <button class="cbtn${conta==='CC'?' cc-on':''}" onclick="setConta(${i},'CC');event.stopPropagation()">CC</button>
-        <button class="cbtn${conta==='AR'?' ar-on':''}" onclick="setConta(${i},'AR');event.stopPropagation()">AR</button>
-        <button class="cbtn${conta==='G'?' g-on':''}" onclick="setConta(${i},'G');event.stopPropagation()">G</button>
+      <td style="text-align:center;width:80px"><div class="conta-wrap">
+        <button class="cbtn${conta==='CC'?' cc-on':''}" onclick="setConta(${i},'CC')">CC</button>
+        <button class="cbtn${conta==='AR'?' ar-on':''}" onclick="setConta(${i},'AR')">AR</button>
+        <button class="cbtn${conta==='G'?' g-on':''}" onclick="setConta(${i},'G')">G</button>
       </div></td>
       <td style="text-align:center;width:44px">
-        <button class="cbtn" style="font-size:.65rem;padding:4px 6px;width:32px" onclick="openCobranca(${i});event.stopPropagation()" title="Enviar cobrança">📤</button>
+        <button class="cbtn" style="font-size:.65rem;padding:4px 6px;width:32px" onclick="openCobranca(${i})" title="Enviar cobrança">📤</button>
+      </td>
+      <td style="text-align:center;width:62px">
+        <div style="display:flex;gap:2px;justify-content:center">
+          <button class="cbtn" style="padding:3px 5px;font-size:.65rem" onclick="openEditClient(${i})" title="Editar">✏️</button>
+          <button class="cbtn" style="padding:3px 5px;font-size:.65rem;border-color:var(--danger);color:var(--danger)" onclick="delClientInMonth(${i})" title="Remover do mês">✕</button>
+        </div>
       </td>
     </tr>`;
   });
-  if(!html)html='<tr><td colspan="9" style="padding:26px;text-align:center;color:var(--muted);font-size:.74rem">Nenhum cliente — clique em + Cliente</td></tr>';
+  if(!html)html='<tr><td colspan="10" style="padding:26px;text-align:center;color:var(--muted);font-size:.74rem">Nenhum cliente — clique em + Cliente</td></tr>';
   document.getElementById('cBody').innerHTML=html;
-  document.getElementById('cFoot').innerHTML=`<tr><td>TOTAL</td><td>R$ ${fn(sf)}</td><td>R$ ${fn(sa)}</td><td style="color:var(--danger)">R$ ${fn(sd)}</td><td style="color:var(--ok)">R$ ${fn(st)}</td><td></td><td></td><td></td><td></td></tr>`;
+  document.getElementById('cFoot').innerHTML=`<tr><td>TOTAL</td><td>R$ ${fn(sf)}</td><td>R$ ${fn(sa)}</td><td style="color:var(--danger)">R$ ${fn(sd)}</td><td style="color:var(--ok)">R$ ${fn(st)}</td><td></td><td></td><td></td><td></td><td></td></tr>`;
 }
 
 function rExp(){
