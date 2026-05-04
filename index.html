@@ -490,8 +490,11 @@ body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--text);min-
 <!-- MODAL ITEM DE GASTO -->
 <div class="overlay" id="mExpItem">
   <div class="modal" style="max-width:380px">
-    <h2 id="mExpItemTitle">Novo Item</h2>
+    <h2 id="mExpItemTitle">Novo Gasto</h2>
     <div class="mg">
+      <div class="fld mg full"><label>Categoria</label>
+        <select id="eiCatSelect" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:'DM Mono',monospace;font-size:.78rem;outline:none;width:100%"></select>
+      </div>
       <div class="fld mg full"><label>Nome</label><input id="eiName" type="text" placeholder="Ex: Notion, Adobe..."></div>
       <div class="fld mg full"><label>Valor (R$)</label><input id="eiValor" type="number" placeholder="0" min="0" step="0.01"></div>
       <div class="fld mg full" style="flex-direction:row;align-items:center;gap:8px">
@@ -1138,17 +1141,18 @@ function delCat(ci){
 let editItemCat=null,editItemIdx=null;
 function openAddExpItem(ci){
   editItemCat=ci;editItemIdx=null;
-  document.getElementById('mExpItemTitle').textContent='Novo Item';
+  document.getElementById('mExpItemTitle').textContent='Novo Gasto';
   document.getElementById('btnDelExpItem').style.display='none';
   ['eiName','eiValor','eiParcelaAtual','eiParcelaTotal'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('eiParcCheck').checked=false;
   document.getElementById('eiParcelaWrap').style.display='none';
+  rEiCatSelect(ci);
   openM('mExpItem');
 }
 function openEditExpItem(ci,ii){
   const it=gec(CUR)[ci]?.items[ii];if(!it)return;
   editItemCat=ci;editItemIdx=ii;
-  document.getElementById('mExpItemTitle').textContent='Editar Item';
+  document.getElementById('mExpItemTitle').textContent='Editar Gasto';
   document.getElementById('btnDelExpItem').style.display='';
   document.getElementById('eiName').value=it.n;
   document.getElementById('eiValor').value=it.valor||'';
@@ -1157,7 +1161,14 @@ function openEditExpItem(ci,ii){
   document.getElementById('eiParcelaWrap').style.display=hasParcela?'':'none';
   document.getElementById('eiParcelaAtual').value=it.parcelas?.atual||'';
   document.getElementById('eiParcelaTotal').value=it.parcelas?.total||'';
+  rEiCatSelect(ci);
   openM('mExpItem');
+}
+function rEiCatSelect(selectedCi){
+  const cats=gec(CUR);
+  const sel=document.getElementById('eiCatSelect');
+  if(!sel)return;
+  sel.innerHTML=cats.map((cat,i)=>`<option value="${i}"${i===selectedCi?' selected':''}>${cat.icon||'📁'} ${cat.name}</option>`).join('');
 }
 function saveExpItem(){
   const n=document.getElementById('eiName').value.trim();if(!n)return;
@@ -1167,10 +1178,23 @@ function saveExpItem(){
     atual:parseInt(document.getElementById('eiParcelaAtual').value)||1,
     total:parseInt(document.getElementById('eiParcelaTotal').value)||1
   }:null;
+  const newCatIdx=parseInt(document.getElementById('eiCatSelect').value);
   const item={n,valor,parcelas,pago:false};
-  const cat=gec(CUR)[editItemCat];if(!cat)return;
-  if(editItemIdx!==null){const old=cat.items[editItemIdx];item.pago=old.pago;cat.items[editItemIdx]=item;}
-  else cat.items.push(item);
+  // if editing and category changed — move item
+  if(editItemIdx!==null){
+    const oldCat=gec(CUR)[editItemCat];
+    const old=oldCat?.items[editItemIdx];
+    item.pago=old?.pago||false;
+    if(newCatIdx!==editItemCat){
+      // remove from old, add to new
+      oldCat?.items.splice(editItemIdx,1);
+      gec(CUR)[newCatIdx]?.items.push(item);
+    } else {
+      oldCat.items[editItemIdx]=item;
+    }
+  } else {
+    gec(CUR)[newCatIdx]?.items.push(item);
+  }
   save();closeM('mExpItem');ra();
 }
 function delExpItem(ci,ii){
@@ -1536,7 +1560,11 @@ function saveClient(){
 function delClient(){if(editC===null)return;gc(CUR).splice(editC,1);save();closeM('mClient');ra();}
 
 // MODALS EXP
-function openAddExpense(){openAddCat();}
+function openAddExpense(){
+  const cats=gec(CUR);
+  if(cats.length===0){openAddCat();return;}
+  openAddExpItem(0); // opens with cat selector pre-filled at first cat
+}
 function setET(t){}
 function saveExp(){}
 function delExp(){}
