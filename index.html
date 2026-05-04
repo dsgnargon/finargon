@@ -230,6 +230,32 @@ body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--text);min-
 .hist-st{font-size:.56rem;font-family:'Syne',sans-serif;font-weight:700;padding:2px 5px;border-radius:3px}
 @media(max-width:900px){.profile-body{grid-template-columns:1fr}.psec{border-right:none}.psec.full{grid-column:1}}
 
+/* EXPENSE CATEGORIES */
+.exp-cat{border-bottom:1px solid var(--border)}
+.exp-cat:last-child{border-bottom:none}
+.exp-cat-hd{display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--surface2);cursor:pointer;user-select:none;transition:background .1s}
+.exp-cat-hd:hover{background:var(--surface3)}
+.exp-cat-arrow{font-size:.7rem;transition:transform .2s;flex-shrink:0;color:var(--muted)}
+.exp-cat-arrow.open{transform:rotate(90deg)}
+.exp-cat-name{font-family:'Syne',sans-serif;font-weight:700;font-size:.75rem;flex:1}
+.exp-cat-total{font-size:.74rem;font-weight:500;color:var(--danger);white-space:nowrap}
+.exp-cat-pago{font-size:.63rem;color:var(--ok);white-space:nowrap}
+.exp-cat-falta{font-size:.63rem;color:var(--warn);white-space:nowrap}
+.exp-cat-actions{display:flex;gap:3px;opacity:0;transition:opacity .15s}
+.exp-cat-hd:hover .exp-cat-actions{opacity:1}
+.exp-cat-body{display:none}
+.exp-cat-body.open{display:block}
+.exp-item{display:grid;grid-template-columns:1fr 90px 50px 40px 56px;border-bottom:1px solid rgba(255,255,255,.04);background:var(--bg)}
+.exp-item:last-child{border-bottom:none}
+.exp-item:hover{background:var(--surface)}
+.exp-item-name{padding:7px 12px 7px 26px;font-size:.75rem;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.exp-item-val{padding:7px 10px;font-size:.75rem;display:flex;align-items:center;justify-content:flex-end;color:var(--text)}
+.exp-item-total{padding:7px 10px;font-size:.75rem;font-weight:500;color:var(--danger);display:flex;align-items:center;justify-content:flex-end}
+.exp-item-act{display:flex;align-items:center;justify-content:center;gap:2px;padding:4px 6px}
+.parcela-tag{font-size:.54rem;background:rgba(186,132,228,.15);color:var(--accent);padding:2px 5px;border-radius:3px;font-family:'Syne',sans-serif;font-weight:700;white-space:nowrap}
+.exp-empty{padding:12px 26px;font-size:.71rem;color:var(--muted2);font-style:italic}
+.falta-cobrar-bar{display:flex;align-items:center;gap:10px;padding:7px 16px;background:rgba(255,179,71,.06);border-bottom:1px solid var(--border);font-size:.68rem;flex-wrap:wrap}
+
 /* CONTA BUTTONS */
 .conta-wrap{display:flex;gap:3px;align-items:center;justify-content:center}
 .cbtn{font-size:.52rem;font-family:'Syne',sans-serif;font-weight:700;padding:3px 5px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--muted2);cursor:pointer;transition:all .15s;letter-spacing:.04em;line-height:1}
@@ -308,26 +334,21 @@ body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--text);min-
             <tbody id="cBody"></tbody>
             <tfoot id="cFoot"></tfoot>
           </table>
+          <div id="faltaCobrarBar"></div>
         </div>
         <div style="display:flex;flex-direction:column;gap:16px">
           <div class="sec">
-            <div class="sec-hd">
+            <div class="sec-hd" style="flex-wrap:wrap;gap:8px">
               <span class="sec-ttl">Gastos</span>
               <span class="bdg bdg-d" id="bExp">R$ 0</span>
+              <div style="display:flex;gap:6px;margin-left:auto;align-items:center;flex-wrap:wrap">
+                <span id="expPagoInfo" style="font-size:.65rem;color:var(--ok);font-family:'DM Mono',monospace"></span>
+                <span id="expFaltaInfo" style="font-size:.65rem;color:var(--warn);font-family:'DM Mono',monospace"></span>
+                <button class="btn-sm btn-p" style="font-size:.58rem;padding:3px 8px" onclick="openAddCat()">+ Categoria</button>
+                <button class="btn-sm" style="font-size:.58rem;padding:3px 8px" onclick="openAddExpense()">+ Gasto</button>
+              </div>
             </div>
-            <div class="ftabs">
-              <button class="ft fa" onclick="setEF('all',this)">Todos</button>
-              <button class="ft" onclick="setEF('fixo',this)">Fixo</button>
-              <button class="ft" onclick="setEF('variavel',this)">Variável</button>
-            </div>
-            <table class="tbl">
-              <thead><tr>
-                <th>Gasto</th><th>Fixo</th><th>Variável</th><th>Total</th>
-                <th class="tc" title="Pago">✅</th>
-              </tr></thead>
-              <tbody id="eBody"></tbody>
-              <tfoot id="eFoot"></tfoot>
-            </table>
+            <div id="expCatList"></div>
           </div>
           <div class="sec">
             <div class="sec-hd">
@@ -451,25 +472,49 @@ body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--text);min-
   </div>
 </div>
 
-<!-- MODAL EXPENSE -->
-<div class="overlay" id="mExp">
-  <div class="modal">
-    <h2 id="mET">Novo Gasto</h2>
-    <div class="fld" style="margin-bottom:13px"><label>Tipo</label>
-      <div class="rg"><div class="ro sf" id="rEF" onclick="setET('fixo')">FIXO</div><div class="ro" id="rEV" onclick="setET('variavel')">VARIÁVEL</div></div>
-    </div>
+<!-- MODAL CATEGORIA -->
+<div class="overlay" id="mCat">
+  <div class="modal" style="max-width:340px">
+    <h2 id="mCatTitle">Nova Categoria</h2>
     <div class="mg">
-      <div class="fld mg full"><label>Nome</label><input id="eN" type="text" placeholder="Ex: Notion, Salário..."></div>
-      <div class="fld"><label>Valor Fixo (R$)</label><input id="eF" type="number" placeholder="0" min="0" step="0.01"></div>
-      <div class="fld"><label>Valor Variável (R$)</label><input id="eV" type="number" placeholder="0" min="0" step="0.01"></div>
+      <div class="fld"><label>Ícone (emoji)</label><input id="catIcon" type="text" placeholder="📁" style="font-size:1.1rem;text-align:center" maxlength="4"></div>
+      <div class="fld"><label>Nome</label><input id="catName" type="text" placeholder="Ex: Cartão de Crédito"></div>
     </div>
     <div class="mact">
-      <button class="bc" onclick="closeM('mExp')">Cancelar</button>
-      <button id="bDE" class="bdel" style="display:none" onclick="delExp()">Remover</button>
-      <button class="bconf" onclick="saveExp()">Salvar</button>
+      <button class="bc" onclick="closeM('mCat')">Cancelar</button>
+      <button class="bconf" onclick="saveCat()">Salvar</button>
     </div>
   </div>
 </div>
+
+<!-- MODAL ITEM DE GASTO -->
+<div class="overlay" id="mExpItem">
+  <div class="modal" style="max-width:380px">
+    <h2 id="mExpItemTitle">Novo Item</h2>
+    <div class="mg">
+      <div class="fld mg full"><label>Nome</label><input id="eiName" type="text" placeholder="Ex: Notion, Adobe..."></div>
+      <div class="fld mg full"><label>Valor (R$)</label><input id="eiValor" type="number" placeholder="0" min="0" step="0.01"></div>
+      <div class="fld mg full" style="flex-direction:row;align-items:center;gap:8px">
+        <input type="checkbox" id="eiParcCheck" onchange="toggleParcelaWrap()" style="width:16px;height:16px;accent-color:var(--accent)">
+        <label for="eiParcCheck" style="font-size:.76rem;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--text)">Tem parcelas?</label>
+      </div>
+      <div id="eiParcelaWrap" class="mg full" style="display:none;grid-column:1/-1">
+        <div class="mg">
+          <div class="fld"><label>Parcela atual</label><input id="eiParcelaAtual" type="number" placeholder="Ex: 3" min="1"></div>
+          <div class="fld"><label>Total de parcelas</label><input id="eiParcelaTotal" type="number" placeholder="Ex: 10" min="1"></div>
+        </div>
+      </div>
+    </div>
+    <div class="mact">
+      <button class="bc" onclick="closeM('mExpItem')">Cancelar</button>
+      <button id="btnDelExpItem" class="bdel" style="display:none" onclick="delExpItem(editItemCat,editItemIdx);closeM('mExpItem')">Remover</button>
+      <button class="bconf" onclick="saveExpItem()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EXPENSE (legado) -->
+<div class="overlay" id="mExp" style="display:none"><div class="modal"><h2>-</h2></div></div>
 
 <!-- MODAL COBRANÇA -->
 <div class="overlay" id="mCobranca">
@@ -565,25 +610,33 @@ const SEED={"2025-Março":{clients:[
   {n:"PH Transportes",tipo:"avulso",fixo:0,avulso:8700,desc:0,cob:false,pago:false,servicos:[]},
   {n:"Marisol",tipo:"avulso",fixo:0,avulso:12000,desc:0,cob:false,pago:false,servicos:[]},
   {n:"Brandão Móveis",tipo:"avulso",fixo:0,avulso:1100,desc:0,cob:false,pago:false,servicos:[]},
-],expenses:[
-  {n:"Adobe",tipo:"fixo",fixo:50,variavel:0,pago:false},
-  {n:"Notion",tipo:"fixo",fixo:140.26,variavel:0,pago:false},
-  {n:"DAS MEI",tipo:"fixo",fixo:160,variavel:0,pago:false},
-  {n:"Consult",tipo:"fixo",fixo:156,variavel:0,pago:false},
-  {n:"FreelaHUB",tipo:"fixo",fixo:59.9,variavel:0,pago:false},
-  {n:"ChatGPT",tipo:"fixo",fixo:126,variavel:0,pago:false},
-  {n:"Canva",tipo:"fixo",fixo:24.25,variavel:0,pago:false},
-  {n:"Apple",tipo:"fixo",fixo:100,variavel:0,pago:false},
-  {n:"Vinícius",tipo:"fixo",fixo:2115,variavel:0,pago:false},
-  {n:"Ronaldo",tipo:"fixo",fixo:1790,variavel:0,pago:false},
-  {n:"Aisha",tipo:"fixo",fixo:1800,variavel:0,pago:false},
-  {n:"Marciel",tipo:"fixo",fixo:2000,variavel:0,pago:false},
-  {n:"Gabriel",tipo:"fixo",fixo:5500,variavel:0,pago:false},
-  {n:"Ana Carolina",tipo:"fixo",fixo:5500,variavel:0,pago:false},
-  {n:"Aluguel",tipo:"fixo",fixo:1200,variavel:0,pago:false},
-  {n:"Amanda",tipo:"fixo",fixo:1650,variavel:0,pago:false},
-  {n:"Guilherme",tipo:"fixo",fixo:1350,variavel:0,pago:false},
-]}};
+],expCats:[
+  {id:'cc',name:'Cartão de Crédito',icon:'💳',open:true,items:[
+    {n:"Adobe",valor:50,parcelas:null,pago:false},
+    {n:"Notion",valor:140.26,parcelas:null,pago:false},
+    {n:"FreelaHUB",valor:59.9,parcelas:null,pago:false},
+    {n:"ChatGPT",valor:126,parcelas:null,pago:false},
+    {n:"Canva",valor:24.25,parcelas:null,pago:false},
+    {n:"Apple",valor:100,parcelas:null,pago:false},
+  ]},
+  {id:'func',name:'Funcionários',icon:'👥',open:true,items:[
+    {n:"Vinícius",valor:2115,parcelas:null,pago:false},
+    {n:"Ronaldo",valor:1790,parcelas:null,pago:false},
+    {n:"Aisha",valor:1800,parcelas:null,pago:false},
+    {n:"Marciel",valor:2000,parcelas:null,pago:false},
+    {n:"Gabriel",valor:5500,parcelas:null,pago:false},
+    {n:"Ana Carolina",valor:5500,parcelas:null,pago:false},
+    {n:"Amanda",valor:1650,parcelas:null,pago:false},
+    {n:"Guilherme",valor:1350,parcelas:null,pago:false},
+  ]},
+  {id:'imp',name:'Impostos',icon:'🏛',open:true,items:[
+    {n:"DAS MEI",valor:160,parcelas:null,pago:false},
+    {n:"Consult",valor:156,parcelas:null,pago:false},
+  ]},
+  {id:'fixo',name:'Custos Fixos',icon:'🏢',open:true,items:[
+    {n:"Aluguel",valor:1200,parcelas:null,pago:false},
+  ]},
+],expenses:[]}};
 
 let DB={},CUR='2025-Março',EF='all',editC=null,editE=null,cTipo='fixo',eTipo='fixo',cmp=new Set(),charts={},curYear=2025;
 
@@ -664,6 +717,18 @@ function migrateAndClean(data){
     if(data[mk]){
       data[mk].clients=(data[mk].clients||[]).filter(c=>c.n&&c.n.trim()!==''&&c.n.toLowerCase()!=='social media');
       data[mk].clients.forEach(c=>{if(!c.servicos)c.servicos=c.tipo==='fixo'?['sm']:[];});
+      // migrate old flat expenses to expCats
+      if(!data[mk].expCats){
+        const old=data[mk].expenses||[];
+        if(old.length>0){
+          data[mk].expCats=[{id:'migrado',name:'Gastos',icon:'💼',open:true,
+            items:old.map(e=>({n:e.n,valor:(e.fixo||0)+(e.variavel||0),parcelas:null,pago:e.pago||false}))}];
+        } else if(SEED[mk]){
+          data[mk].expCats=SEED[mk].expCats.map(cat=>({...cat,items:cat.items.map(it=>({...it}))}));
+        } else {
+          data[mk].expCats=[];
+        }
+      }
       if(SEED[mk]){
         const existing=new Set(data[mk].clients.map(c=>c.n));
         SEED[mk].clients.filter(c=>c.tipo==='avulso').forEach(sc=>{if(!existing.has(sc.n))data[mk].clients.push({...sc});});
@@ -675,7 +740,7 @@ function migrateAndClean(data){
 
 function seedFresh(){
   DB={};
-  Object.entries(SEED).forEach(([m,d])=>{DB[m]={clients:d.clients.map(c=>({...c})),expenses:d.expenses.map(e=>({...e}))};});
+  Object.entries(SEED).forEach(([m,d])=>{DB[m]={clients:d.clients.map(c=>({...c})),expCats:d.expCats.map(cat=>({...cat,items:cat.items.map(it=>({...it}))})),expenses:[]};});
 }
 
 async function load(){
@@ -792,6 +857,7 @@ function init(){
 const ms=()=>Object.keys(DB);
 const gc=m=>DB[m]?.clients||[];
 const ge=m=>DB[m]?.expenses||[];
+const gec=m=>{if(!DB[m])return[];if(!DB[m].expCats)DB[m].expCats=[];return DB[m].expCats;};
 const fn=(v,d=2)=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const fmt=v=>(!v||v===0)?'—':'R$ '+fn(v);
 const tRec=m=>gc(m).reduce((s,c)=>s+(c.fixo||0)+(c.avulso||0)-(c.desc||0),0);
@@ -800,7 +866,8 @@ const tPago=m=>gc(m).reduce((s,c)=>{
   if(c.pagoParcial>0)return s+c.pagoParcial;
   return s;
 },0);
-const tExp=m=>ge(m).reduce((s,e)=>s+(e.fixo||0)+(e.variavel||0),0);
+const tExp=m=>gec(m).reduce((s,cat)=>s+cat.items.reduce((ss,it)=>ss+(it.valor||0),0),0);
+const tExpPago=m=>gec(m).reduce((s,cat)=>s+cat.items.filter(it=>it.pago).reduce((ss,it)=>ss+(it.valor||0),0),0);
 const lucro=m=>tPago(m)-tExp(m);
 const years=()=>[...new Set(ms().map(k=>k.split('-')[0]))].sort();
 const monthsOfYear=y=>ms().filter(k=>k.startsWith(y+'-')).sort((a,b)=>{
@@ -927,27 +994,84 @@ function rClients(){
 }
 
 function rExp(){
-  const all=ge(CUR);const exps=EF==='all'?all:all.filter(e=>e.tipo===EF);
-  let sf=0,sv=0,st=0,html='';
-  exps.forEach(e=>{
-    const ri=all.indexOf(e),tot=(e.fixo||0)+(e.variavel||0);
-    sf+=e.fixo||0;sv+=e.variavel||0;st+=tot;
-    html+=`<tr ondblclick="openEditExp(${ri})" style="cursor:pointer" title="Duplo clique para editar">
-      <td>
-        <div class="ec nm" style="cursor:pointer;gap:5px">
-          <span style="flex:1">${e.n}</span>
-          <span class="tag ${e.tipo==='fixo'?'tf':'tv'}">${e.tipo==='fixo'?'FIXO':'VAR'}</span>
+  const cats=gec(CUR);
+  const totalExp=tExp(CUR),totalPago=tExpPago(CUR),falta=totalExp-totalPago;
+  // update badges
+  document.getElementById('bExp').textContent=`R$ ${fn(totalExp)}`;
+  document.getElementById('expPagoInfo').textContent=`✅ pago: R$ ${fn(totalPago)}`;
+  document.getElementById('expFaltaInfo').textContent=falta>0?`⏳ falta: R$ ${fn(falta)}`:'';
+
+  if(!cats.length){
+    document.getElementById('expCatList').innerHTML='<div class="exp-empty">Nenhuma categoria — clique em + Categoria</div>';
+    return;
+  }
+  let html='';
+  cats.forEach((cat,ci)=>{
+    const catTotal=cat.items.reduce((s,it)=>s+(it.valor||0),0);
+    const catPago=cat.items.filter(it=>it.pago).reduce((s,it)=>s+(it.valor||0),0);
+    const catFalta=catTotal-catPago;
+    const isOpen=cat.open!==false;
+    html+=`<div class="exp-cat">
+      <div class="exp-cat-hd" onclick="toggleCat(${ci})">
+        <span class="exp-cat-arrow${isOpen?' open':''}">▶</span>
+        <span style="font-size:.9rem">${cat.icon||'📁'}</span>
+        <span class="exp-cat-name">${cat.name}</span>
+        <span class="exp-cat-pago">${catPago>0?'✅ R$ '+fn(catPago):''}</span>
+        ${catFalta>0?`<span class="exp-cat-falta">⏳ R$ ${fn(catFalta)}</span>`:''}
+        <span class="exp-cat-total">R$ ${fn(catTotal)}</span>
+        <div class="exp-cat-actions">
+          <button class="cbtn" style="padding:2px 5px;font-size:.6rem" onclick="event.stopPropagation();openAddExpItem(${ci})" title="Add item">+</button>
+          <button class="cbtn" style="padding:2px 5px;font-size:.6rem" onclick="event.stopPropagation();openEditCat(${ci})" title="Editar categoria">✏️</button>
+          <button class="cbtn" style="padding:2px 5px;font-size:.6rem;border-color:var(--danger);color:var(--danger)" onclick="event.stopPropagation();delCat(${ci})" title="Remover categoria">✕</button>
         </div>
-      </td>
-      <td><div class="ec vl" contenteditable="true" data-i="${ri}" data-f="fixo" onblur="ceE(this)" data-ph="0" ondblclick="event.stopPropagation()">${e.fixo||''}</div></td>
-      <td><div class="ec vl" contenteditable="true" data-i="${ri}" data-f="variavel" onblur="ceE(this)" data-ph="0" ondblclick="event.stopPropagation()">${e.variavel||''}</div></td>
-      <td><div class="ec" style="color:var(--danger);font-weight:500;justify-content:flex-end;padding:0 9px;min-height:36px;display:flex;align-items:center">${fmt(tot)}</div></td>
-      <td style="text-align:center;width:38px"><div class="sdot${e.pago?' pago':''}" onclick="tgEP(${ri});event.stopPropagation()">✅</div></td>
-    </tr>`;
+      </div>
+      <div class="exp-cat-body${isOpen?' open':''}">
+        ${cat.items.length===0?'<div class="exp-empty">Sem itens — clique em + para adicionar</div>':
+          `<div style="display:grid;grid-template-columns:1fr 90px 50px 40px 56px;background:var(--surface2);border-bottom:1px solid var(--border)">
+            <div style="padding:4px 12px 4px 26px;font-size:.56rem;font-family:'Syne',sans-serif;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2)">Item</div>
+            <div style="padding:4px 10px;font-size:.56rem;font-family:'Syne',sans-serif;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);text-align:right">Valor</div>
+            <div style="padding:4px 10px;font-size:.56rem;font-family:'Syne',sans-serif;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);text-align:center">Parcela</div>
+            <div style="padding:4px 6px;font-size:.56rem;font-family:'Syne',sans-serif;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);text-align:center">✅</div>
+            <div style="padding:4px 6px;font-size:.56rem;font-family:'Syne',sans-serif;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);text-align:center">Ação</div>
+          </div>
+          ${cat.items.map((it,ii)=>`
+          <div class="exp-item">
+            <div class="exp-item-name">
+              <span style="flex:1">${it.n}</span>
+              ${it.parcelas?`<span class="parcela-tag">${it.parcelas.atual}/${it.parcelas.total}x</span>`:''}
+              ${it.tipo==='variavel'?`<span class="tag tv" style="font-size:.48rem">VAR</span>`:''}
+            </div>
+            <div class="exp-item-val" style="color:${it.pago?'var(--ok)':'var(--text)'}">R$ ${fn(it.valor)}</div>
+            <div style="display:flex;align-items:center;justify-content:center;font-size:.65rem;color:var(--muted)">
+              ${it.parcelas?`<span>${it.parcelas.atual}/${it.parcelas.total}</span>`:'—'}
+            </div>
+            <div class="exp-item-act">
+              <div class="sdot${it.pago?' pago':''}" style="width:22px;height:22px;font-size:.7rem" onclick="tgExpItem(${ci},${ii})">✅</div>
+            </div>
+            <div class="exp-item-act">
+              <button class="cbtn" style="padding:2px 4px;font-size:.6rem" onclick="openEditExpItem(${ci},${ii})">✏️</button>
+              <button class="cbtn" style="padding:2px 4px;font-size:.6rem;border-color:var(--danger);color:var(--danger)" onclick="delExpItem(${ci},${ii})">✕</button>
+            </div>
+          </div>`).join('')}`
+        }
+      </div>
+    </div>`;
   });
-  if(!html)html='<tr><td colspan="5" style="padding:26px;text-align:center;color:var(--muted);font-size:.74rem">Nenhum gasto</td></tr>';
-  document.getElementById('eBody').innerHTML=html;
-  document.getElementById('eFoot').innerHTML=`<tr><td>TOTAL</td><td>R$ ${fn(sf)}</td><td>R$ ${fn(sv)}</td><td style="color:var(--danger)">R$ ${fn(st)}</td><td></td></tr>`;
+  document.getElementById('expCatList').innerHTML=html;
+
+  // falta cobrar bar in receitas
+  const cls=gc(CUR);
+  const semCob=cls.filter(c=>!c.cob&&!c.pago);
+  const valSemCob=semCob.reduce((s,c)=>s+(c.fixo||0)+(c.avulso||0)-(c.desc||0),0);
+  const bar=document.getElementById('faltaCobrarBar');
+  if(bar){
+    if(semCob.length>0){
+      bar.className='falta-cobrar-bar';
+      bar.innerHTML=`<span style="color:var(--warn);font-family:'Syne',sans-serif;font-weight:700">⚠️ Falta cobrar:</span><span style="color:var(--text)">${semCob.length} cliente${semCob.length!==1?'s':''}</span><span style="color:var(--warn);font-weight:500">R$ ${fn(valSemCob)}</span><span style="color:var(--muted);flex:1;text-align:right">${semCob.map(c=>`<span style="background:var(--surface3);padding:1px 6px;border-radius:3px;margin-left:4px">${c.n}</span>`).join('')}</span>`;
+    } else {
+      bar.innerHTML='';bar.className='';
+    }
+  }
 }
 
 // inline edit helpers — strip tag text before saving
@@ -978,6 +1102,83 @@ function tgPago(i){
   else{c.pago=false;c.pagoParcial=0;save();ra();}
 }
 function tgEP(i){const e=ge(CUR)[i];if(e){e.pago=!e.pago;save();ra();}}
+function tgExpItem(ci,ii){const it=gec(CUR)[ci]?.items[ii];if(it){it.pago=!it.pago;save();ra();}}
+function toggleCat(ci){const cat=gec(CUR)[ci];if(cat){cat.open=cat.open===false?true:false;save();rExp();}}
+
+// Category CRUD
+let editCatIdx=null;
+function openAddCat(){
+  editCatIdx=null;
+  document.getElementById('mCatTitle').textContent='Nova Categoria';
+  document.getElementById('catName').value='';
+  document.getElementById('catIcon').value='📁';
+  openM('mCat');
+}
+function openEditCat(ci){
+  const cat=gec(CUR)[ci];if(!cat)return;
+  editCatIdx=ci;
+  document.getElementById('mCatTitle').textContent='Editar Categoria';
+  document.getElementById('catName').value=cat.name;
+  document.getElementById('catIcon').value=cat.icon||'📁';
+  openM('mCat');
+}
+function saveCat(){
+  const name=document.getElementById('catName').value.trim();if(!name)return;
+  const icon=document.getElementById('catIcon').value.trim()||'📁';
+  if(editCatIdx!==null){const cat=gec(CUR)[editCatIdx];cat.name=name;cat.icon=icon;}
+  else{gec(CUR).push({id:'cat_'+Date.now(),name,icon,open:true,items:[]});}
+  save();closeM('mCat');ra();
+}
+function delCat(ci){
+  const cat=gec(CUR)[ci];if(!cat)return;
+  openConfirm(`Remover "${cat.name}"?`,`Remove a categoria e todos os seus itens deste mês.`,()=>{gec(CUR).splice(ci,1);save();ra();});
+}
+
+// Item CRUD
+let editItemCat=null,editItemIdx=null;
+function openAddExpItem(ci){
+  editItemCat=ci;editItemIdx=null;
+  document.getElementById('mExpItemTitle').textContent='Novo Item';
+  document.getElementById('btnDelExpItem').style.display='none';
+  ['eiName','eiValor','eiParcelaAtual','eiParcelaTotal'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('eiParcCheck').checked=false;
+  document.getElementById('eiParcelaWrap').style.display='none';
+  openM('mExpItem');
+}
+function openEditExpItem(ci,ii){
+  const it=gec(CUR)[ci]?.items[ii];if(!it)return;
+  editItemCat=ci;editItemIdx=ii;
+  document.getElementById('mExpItemTitle').textContent='Editar Item';
+  document.getElementById('btnDelExpItem').style.display='';
+  document.getElementById('eiName').value=it.n;
+  document.getElementById('eiValor').value=it.valor||'';
+  const hasParcela=!!it.parcelas;
+  document.getElementById('eiParcCheck').checked=hasParcela;
+  document.getElementById('eiParcelaWrap').style.display=hasParcela?'':'none';
+  document.getElementById('eiParcelaAtual').value=it.parcelas?.atual||'';
+  document.getElementById('eiParcelaTotal').value=it.parcelas?.total||'';
+  openM('mExpItem');
+}
+function saveExpItem(){
+  const n=document.getElementById('eiName').value.trim();if(!n)return;
+  const valor=parseFloat(document.getElementById('eiValor').value)||0;
+  const hasParcela=document.getElementById('eiParcCheck').checked;
+  const parcelas=hasParcela?{
+    atual:parseInt(document.getElementById('eiParcelaAtual').value)||1,
+    total:parseInt(document.getElementById('eiParcelaTotal').value)||1
+  }:null;
+  const item={n,valor,parcelas,pago:false};
+  const cat=gec(CUR)[editItemCat];if(!cat)return;
+  if(editItemIdx!==null){const old=cat.items[editItemIdx];item.pago=old.pago;cat.items[editItemIdx]=item;}
+  else cat.items.push(item);
+  save();closeM('mExpItem');ra();
+}
+function delExpItem(ci,ii){
+  gec(CUR)[ci]?.items.splice(ii,1);save();ra();
+}
+function toggleParcelaWrap(){
+  document.getElementById('eiParcelaWrap').style.display=document.getElementById('eiParcCheck').checked?'':'none';
+}
 function setConta(i,v){const c=gc(CUR)[i];if(c){c.conta=c.conta===v?'':v;save();ra();}}
 function tgNF(i){
   const c=gc(CUR)[i];if(!c)return;
@@ -1335,26 +1536,10 @@ function saveClient(){
 function delClient(){if(editC===null)return;gc(CUR).splice(editC,1);save();closeM('mClient');ra();}
 
 // MODALS EXP
-function setET(t){eTipo=t;document.getElementById('rEF').className='ro'+(t==='fixo'?' sf':'');document.getElementById('rEV').className='ro'+(t==='variavel'?' sv':'');}
-function openAddExpense(){
-  editE=null;eTipo='fixo';
-  document.getElementById('mET').textContent='Novo Gasto';
-  document.getElementById('bDE').style.display='none';
-  ['eN','eF','eV'].forEach(id=>document.getElementById(id).value='');
-  setET('fixo');openM('mExp');
-}
-function openEditExp(i){
-  const e=ge(CUR)[i];if(!e)return;
-  editE=i;eTipo=e.tipo;
-  document.getElementById('mET').textContent='Editar Gasto';
-  document.getElementById('bDE').style.display='block';
-  document.getElementById('eN').value=e.n;
-  document.getElementById('eF').value=e.fixo||'';
-  document.getElementById('eV').value=e.variavel||'';
-  setET(e.tipo);openM('mExp');
-}
-function saveExp(){const n=document.getElementById('eN').value.trim();if(!n)return;const o={n,tipo:eTipo,fixo:parseFloat(document.getElementById('eF').value)||0,variavel:parseFloat(document.getElementById('eV').value)||0,pago:false};if(editE!==null){const old=ge(CUR)[editE];o.pago=old.pago;ge(CUR)[editE]=o;}else ge(CUR).push(o);save();closeM('mExp');ra();}
-function delExp(){if(editE===null)return;ge(CUR).splice(editE,1);save();closeM('mExp');ra();}
+function openAddExpense(){openAddCat();}
+function setET(t){}
+function saveExp(){}
+function delExp(){}
 
 function addMonth(){
   const MO=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
