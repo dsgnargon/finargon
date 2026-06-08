@@ -1571,7 +1571,6 @@ function delExp(){}
 
 function addMonth(){
   const MO=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-  // find next month after the last existing key (chronologically)
   const allKeys=ms().sort((a,b)=>{
     const [ay,am]=a.split('-');const [by,bm]=b.split('-');
     const yi=parseInt(ay)-parseInt(by);
@@ -1585,11 +1584,34 @@ function addMonth(){
   else{nextM=MO[mi+1];nextY=parseInt(lastY);}
   const nextKey=`${nextY}-${nextM}`;
   if(DB[nextKey])return alert(`${nextM} ${nextY} já existe!`);
-  DB[nextKey]={
-    clients:(DB[last]?.clients||[]).filter(c=>c.tipo==='fixo').map(c=>({...c,avulso:0,cob:false,pago:false,pagoParcial:0,conta:''})),
-    expenses:(DB[last]?.expenses||[]).filter(e=>e.tipo==='fixo').map(e=>({...e,pago:false}))
-  };
+  // copy fixed clients
+  const clients=(DB[last]?.clients||[]).filter(c=>c.tipo==='fixo').map(c=>({...c,avulso:0,cob:false,pago:false,pagoParcial:0,conta:'',nf:undefined}));
+  // copy expense categories — reset pago on all items
+  const expCats=(DB[last]?.expCats||[]).map(cat=>({
+    ...cat,
+    items:cat.items.map(it=>({
+      ...it,
+      pago:false,
+      // advance parcela if has parcelas
+      parcelas:it.parcelas?{
+        atual:it.parcelas.atual+1,
+        total:it.parcelas.total
+      }:null
+    })).filter(it=>!it.parcelas||it.parcelas.atual<=it.parcelas.total)
+  }));
+  DB[nextKey]={clients,expCats,expenses:[]};
   CUR=nextKey;save();ra();
+}
+
+function setCURToLatest(){
+  const MO=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const allKeys=ms().sort((a,b)=>{
+    const [ay,am]=a.split('-');const [by,bm]=b.split('-');
+    const yi=parseInt(ay)-parseInt(by);
+    return yi!==0?yi:MO.indexOf(am)-MO.indexOf(bm);
+  });
+  if(allKeys.length>0) CUR=allKeys[allKeys.length-1];
+  curYear=parseInt(CUR.split('-')[0]);
 }
 
 function delMonth(){
@@ -1707,12 +1729,13 @@ function savePagoTotal(){
 }
 
 function init(){
-  load();
-  // seed initial history state
-  const snap=JSON.stringify(DB);
-  HIST.push(snap);HIST_IDX=0;
-  updUndoBtns();
-  ra();
+  load().then(()=>{
+    setCURToLatest();
+    const snap=JSON.stringify(DB);
+    HIST.push(snap);HIST_IDX=0;
+    updUndoBtns();
+    ra();
+  });
 }
 </script>
 
